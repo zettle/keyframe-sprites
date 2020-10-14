@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>keyframes</title>
+    <link rel="stylesheet" href="/public/element-ui@2.13.2/index.css">
+    <style>
+        canvas {
+            /* background-color: red; */
+        }
+        .sprite-box {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-image: url('/image/btn.png');
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <el-card class="box-card">
+        <div slot="header" class="clearfix">
+            <span>生成雪碧图和序列帧</span>
+        </div>
+        <el-row>
+            <!-- 上传图片区域 -->
+            <el-col :span="10" class="select-box">
+                <el-upload 
+                    drag 
+                    multiple
+                    action="/keyframes/doUpload"
+                    :before-upload="beforeUploadEvHandler">
+                    <i class="el-icon-upload"></i>
+                    <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+                </el-upload>
+                <el-button type="primary" @click="sortImg">生成</el-button>
+            </el-col>
+            <!-- 雪碧图区域 -->
+            <el-col :span="14" class="sprite-box">
+                <canvas id="canvas"></canvas>
+            </el-col>
+        </el-row>
+        <pre id="pre-code">
+            
+        </pre>
+    </el-card>
+</div>
+
+<script id="tpl" type="text/html">
+    @keyframes run {
+        0% { background-position: -{{padding}}px -{{padding}}px; }
+        {{each imgList}}
+        {{set iNum = $index + 1}}
+        {{(precent * iNum).toFixed(4)}}% { background-position: -{{ (imgWidth + padding * 2) * iNum + padding }}px -{{padding}}px; }
+        {{/each}}
+        100% { background-position: -{{padding}}px -{{padding}}px; }
+    }
+</script>
+<script src="/public/js/jquery.min.js"></script>
+<script src="/public/vue@2.6.9/vue.min.js"></script>
+<script src="/public/element-ui@2.13.2/index.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/art-template/4.10.0/lib/template-web.min.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: function() {
+        return {
+            imgWidth: '', // 图片的宽
+            imgHeight: '', // 图片的高
+            padding: 10, // 元素之间间隙
+            imgList: [] // 选择图片的file对象
+        }
+    },
+    mounted () {
+        this.canvas = document.querySelector('#canvas');
+        this.ctx = canvas.getContext('2d');
+        this.preCode = document.querySelector('#pre-code');
+    },
+    methods: {
+        beforeUploadEvHandler (file) {
+            this.imgList.push(file);
+            return false;
+        },
+        sortImg () {
+            this.calCanvasSize();
+        },
+        getImageInfo (fileData) {
+            return new Promise(resolve => {
+                var reader = new FileReader();
+                reader.onload = (e) => {
+                    //加载图片获取图片真实宽度和高度
+                    var image = new Image();
+                    image.onload = () => {
+                        console.log('load=end');
+                        resolve(image);
+                    }
+                    image.src = e.target.result;
+                }
+                reader.readAsDataURL(fileData);
+            });
+        },
+        async calCanvasSize () {
+            const fileData = this.imgList[0];
+            const image = await this.getImageInfo(fileData);
+            this.imgWidth = image.width;
+            this.imgHeight = image.height;
+
+            // 设置canvas的宽高
+            this.canvas.width = (this.imgWidth + this.padding) * this.imgList.length;
+            this.canvas.height = this.imgHeight + this.padding * 2;
+
+            // 开始绘画
+            this.imgList.forEach(async (file, i) => {
+                const imgInfo = await this.getImageInfo(fileData);
+                /*  图片的x坐标
+                 *  第0张   10
+                 *  第1张   width + 10 * 3
+                 *  第2张   width * 2 + 10 * 5
+                 *  第i张   width * i + 10 * (i*2 +1)
+                 */ 
+                this.ctx.drawImage(imgInfo, this.imgWidth * i + 10 * (i*2 +1), this.padding);
+            });
+
+            // 开始输出keyframes的序列帧代码
+            this.outputCode();
+        },
+        /*
+         @keyframes run {
+                    0% { background-position: -10px -10px; }
+                    <% for (var i=1;i<=80;i++) {%>
+                    <%= (1.2195 * i).toFixed(4) %>% {background-position: -<%= 592 * i  + 20 * i + 10 %>px -10px; }
+                    <% } %>
+                    100% { background-position: -49582px -10px; }
+                }
+        */ 
+        outputCode () {
+            this.preCode.innerText = template('tpl', {
+                precent: 100 / this.imgList.length,
+                imgWidth: this.imgWidth, // 图片的宽
+                imgHeight: this.imgHeight, // 图片的高
+                padding: this.padding, // 元素之间间隙
+                imgList: this.imgList // 选择图片的file对象
+            });
+        }
+    }
+});
+</script>
+</body>
+</html>

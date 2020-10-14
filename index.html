@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>keyframes</title>
+    <link rel="stylesheet" href="./lib/element-ui@2.13.2/index.css">
+    <style>
+        .sprite-box {
+            height: 100%;
+            overflow: auto;
+        }
+
+        canvas {
+            background-image: url('./image/btn.png');
+        }
+
+        .result {
+            overflow: hidden;
+            background-color: black;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <el-card class="box-card">
+        <div slot="header" class="clearfix">
+            <span>生成雪碧图和序列帧</span>
+        </div>
+        <el-row :gutter="20">
+            <!-- 上传图片区域 -->
+            <el-col :span="10" class="select-box">
+                <el-form label-width="60px" style="margin-top: 40px;">
+                    <el-form-item label="时间">
+                        <el-input v-model="duration" placeholder="请输入运动时间"></el-input>
+                    </el-form-item>
+                    <el-form-item label="资源">
+                        <el-upload 
+                            drag 
+                            multiple
+                            action="/"
+                            :disabled="isDisabled"
+                            :auto-upload="false"
+                            :show-file-list="false"
+                            :on-change="onChangeEvHandler">
+                            <i class="el-icon-upload"></i>
+                            <div class="el-upload__text">
+                                <span v-if="isDisabled">已选择文件，如要再选择请刷新浏览器</span>
+                                <span v-else>将文件拖到此处，或<em>点击上传</em></span>
+                            </div>
+                        </el-upload>
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" @click="sortImg">生成</el-button>
+                        <el-button @click="location.reload()">刷新浏览器</el-button>
+                    </el-form-item>
+                </el-form>
+            </el-col>
+            <!-- 雪碧图区域 -->
+            <el-col :span="14" class="sprite-box">
+                <canvas id="canvas"></canvas>
+            </el-col>
+        </el-row>
+        <el-divider></el-divider>
+        <el-row>
+            <!-- 代码 -->
+            <el-col :span="10">
+                <pre id="pre-code"></pre>
+            </el-col>
+            <!-- 效果 -->
+            <el-col :span="12">
+                <div class="result">
+                    <div class="box"></div>
+                </div>
+            </el-col>
+        </el-row>
+    </el-card>
+</div>
+
+<script id="tpl" type="text/html">
+    .box {
+        width: {{imgWidth}}px;
+        height: {{imgHeight}}px;
+        background: url('./sprite.png') no-repeat;
+        animation: run {{duration}}s steps({{imgList.length}}, end) infinite;
+    }
+    @keyframes run {
+        0% { background-position: 0 0; }
+        100% { background-position: -{{canvasWidth}}px 0; }
+    }
+</script>
+<script src="./lib/jquery/jquery.min.js"></script>
+<script src="./lib/vue@2.6.9/vue.min.js"></script>
+<script src="./lib/element-ui@2.13.2/index.js"></script>
+<script src="./lib/art-template/template-web.min.js"></script>
+<script>
+new Vue({
+    el: '#app',
+    data: function() {
+        return {
+            isDisabled: false, // 是否禁止上传
+            duration: '2', // 运动时间
+            imgWidth: '', // 图片的宽
+            imgHeight: '', // 图片的高
+            padding: 0, // 元素之间间隙
+            imgList: [] // 选择图片的file对象
+        }
+    },
+    mounted () {
+        this.canvas = document.querySelector('#canvas');
+        this.ctx = canvas.getContext('2d');
+        this.preCode = document.querySelector('#pre-code');
+    },
+    methods: {
+        onChangeEvHandler (file) {
+            this.isDisabled = true;
+            this.imgList.push(file.raw);
+        },
+        sortImg () {
+            this.calCanvasSize();
+        },
+        getImageInfo (fileData) {
+            return new Promise(resolve => {
+                var reader = new FileReader();
+                reader.onload = (e) => {
+                    //加载图片获取图片真实宽度和高度
+                    var image = new Image();
+                    image.onload = () => {
+                        resolve(image);
+                    }
+                    image.src = e.target.result;
+                }
+                reader.readAsDataURL(fileData);
+            });
+        },
+        async calCanvasSize () {
+            const fileData = this.imgList[0];
+            const image = await this.getImageInfo(fileData);
+            this.imgWidth = image.width;
+            this.imgHeight = image.height;
+
+            // 设置canvas的宽高
+            this.canvas.width = (this.imgWidth + this.padding) * this.imgList.length;
+            this.canvas.height = this.imgHeight + this.padding * 2;
+            // this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // 开始绘画
+            this.imgList.forEach(async (file, i) => {
+                const imgInfo = await this.getImageInfo(file);
+
+                /*  图片的x坐标
+                 *  第0张   10
+                 *  第1张   width + 10 * 3
+                 *  第2张   width * 2 + 10 * 5
+                 *  第i张   width * i + 10 * (i*2 +1)
+                 */ 
+                this.ctx.drawImage(imgInfo, this.imgWidth * i + this.padding * (i*2 +1), this.padding);
+
+                // 绘画到最后一张后
+                if (i === this.imgList.length -1) {
+                    setTimeout(() => {
+                        this.outputCode(); // 开始输出keyframes的序列帧代码
+                    }, 500);
+                }
+            });
+
+            
+            
+        },
+        outputCode () {
+            this.preCode.innerText = template('tpl', {
+                precent: 100 / this.imgList.length,
+                duration: this.duration, // 运动时间
+                imgWidth: this.imgWidth, // 图片的宽
+                imgHeight: this.imgHeight, // 图片的高
+                padding: this.padding, // 元素之间间隙
+                imgList: this.imgList, // 选择图片的file对象
+                canvasWidth: this.canvas.width // canvas的整个宽度
+            });
+
+            $('.result').css({width: this.imgWidth + 20, height: this.imgHeight + 20});
+            $('.result .box').css({ 
+                margin: '10px auto 0',
+                background: `url(${this.canvas.toDataURL('image/png')}) no-repeat`
+            });
+            $('body').append($(`<style>${this.preCode.innerText}</style>`));
+        }
+    }
+});
+</script>
+</body>
+</html>
