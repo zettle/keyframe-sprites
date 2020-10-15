@@ -32,6 +32,9 @@
             <!-- 上传图片区域 -->
             <el-col :span="10" class="select-box">
                 <el-form label-width="60px" style="margin-top: 40px;">
+                    <el-form-item label="间隙">
+                        <el-input v-model.number="padding" placeholder="间隙"></el-input>
+                    </el-form-item>
                     <el-form-item label="时间">
                         <el-input v-model="duration" placeholder="请输入运动时间"></el-input>
                     </el-form-item>
@@ -101,8 +104,8 @@
     animation: run {{duration}}s steps({{imgList.length}}, end) infinite;
 }
 @keyframes run {
-    0% { background-position: 0 0; }
-    100% { background-position: -{{canvasWidth}}px 0; }
+    0% { background-position: -{{padding}}px -{{padding}}px; }
+    100% { background-position: -{{canvasWidth}}px -{{padding}}px; }
 }
 </script>
 
@@ -119,7 +122,7 @@
     {{each imgList}}
     {{set iNum = $index + 1}}
     {{if iNum !== imgList.length}}
-    {{(precent * iNum).toFixed(4)}}% { background-position: -{{ (imgWidth + padding * 2) * iNum + padding }}px -{{padding}}px; }
+    {{(precent * iNum).toFixed(4)}}% { background-position: -{{ (imgWidth + padding) * iNum + padding}}px -{{padding}}px; }
     {{/if}}
     {{/each}}
     100% { background-position: -{{padding}}px -{{padding}}px; }
@@ -139,7 +142,7 @@ new Vue({
             duration: '2', // 运动时间
             imgWidth: '', // 图片的宽
             imgHeight: '', // 图片的高
-            padding: 0, // 元素之间间隙
+            padding: 10, // 元素之间间隙
             imgList: [] // 选择图片的file对象
         }
     },
@@ -179,7 +182,7 @@ new Vue({
             this.imgHeight = image.height;
 
             // 设置canvas的宽高
-            this.canvas.width = (this.imgWidth + this.padding) * this.imgList.length;
+            this.canvas.width = (this.imgWidth + this.padding) * this.imgList.length + this.padding;
             this.canvas.height = this.imgHeight + this.padding * 2;
             // this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -188,18 +191,15 @@ new Vue({
                 const imgInfo = await this.getImageInfo(file);
 
                 /*  图片的x坐标
-                 *  第0张   10
-                 *  第1张   width + 10 * 3
-                 *  第2张   width * 2 + 10 * 5
-                 *  第i张   width * i + 10 * (i*2 +1)
+                 *  第0张  padding
+                 *  第1张  padding * 2 + imgWidth * 1
+                 *  第2张  padding * 3 + imgWidth * 2
                  */ 
-                this.ctx.drawImage(imgInfo, this.imgWidth * i + this.padding * (i*2 +1), this.padding);
+                this.ctx.drawImage(imgInfo, this.padding * (i+1) + this.imgWidth * i, this.padding);
 
                 // 绘画到最后一张后
                 if (i === this.imgList.length -1) {
-                    setTimeout(() => {
-                        this.outputCode(); // 开始输出keyframes的序列帧代码
-                    }, 500);
+                    this.outputCode(); // 开始输出keyframes的序列帧代码
                 }
             });
 
